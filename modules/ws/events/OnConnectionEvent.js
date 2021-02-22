@@ -1,4 +1,4 @@
-import { getGroupUsersDB, getUserByToken } from "../db/WsModel";
+import { getGroupUsersDB, getUserByToken, saveMessageDB } from "../db/WsModel";
 
 const users = {};
 
@@ -6,7 +6,7 @@ export default async function onConnection(application, socket) {
 
     //joinedChat event
     socket.on('joinedChat', async (userToken) => {
-        let result = await getUserByToken(application.db, userToken, socket.appId);
+        let result = await getUserByToken(userToken, socket.appId);
         
         if (!result || !result.length) {
             socket.emit('error', 'something error!');
@@ -40,40 +40,34 @@ export default async function onConnection(application, socket) {
         socket.leave(socket.user_token);
     })
 
-    socket.on('message', function(msg, receiverId=null, groupId=null) {
-        if (receiverId != null) {
-            //message info
-            let senderToken = socket.user_token;
-            let receiver = users[receiverId];
+    socket.on('message', async function(message_content, receiverId=null, groupId=null) {
+        
+        let sendToUsers = [];
+        let senderToken = socket.user_token;
 
-            
-            //validation
-            if (!receiver || !senderToken) {
-                socket.emit('error', 'receiver not found!');
-                return;
-            }
-
-            //result data
-            let message = new Message(msg, groupId, socket.user_id, receiverId);
-            //push to private rooms [sender and recevier] 
-            application.io.of(socket.nsp.name)
-                            .to(senderToken)
-                            .to(receiver.user_token)
-                            .emit('message', message);
-        }else if (groupId != null) {
-            //handle message to group
-            getGroupUsers(application.db, socket.appId, groupId).then(groupUsers => {
-                let message = new Message(msg, groupId, socket.user_id, receiverId);
-                groupUsers.forEach((user) => {
-                    application.io.of(socket.nsp.name)
-                                  .to(user.user_token)
-                                  .emit('message', message);
-                });
-            })
-        }else {
-            socket.emit('error', 'receiver or group is required!');
+        //validation
+        if (!((senderToken && receiverId) || (senderToken && groupId))) {
+            socket.emit('error', 'something error');
             return;
         }
+
+        if (receiverId != null) {
+            //handle private message
+            sendToUsers = [senderToken];
+            //if receiver user is online
+            let usr = users[receiverId];
+            if (usr) {
+                sendToUsers.push(usr.user_token);
+            }
+            
+        }else if (groupId != null) {
+            //handle message to group
+            sendToUsers = await getGroupUsers(socket.appId, groupId);
+        }
+
+        let message = new Message(message_content, groupId, socket.user_id, receiverId);
+
+        message.send(application.io, socket, sendToUsers);
     });
 }
 
@@ -101,26 +95,81 @@ const emitOnlineUsers = () => {
     });
 } 
 
-const getGroupUsers = async (db, appId, groupId) => {
+const getGroupUsers = async (appId, groupId) => {
     //group users in db
-    let groupUsersInDB = await getGroupUsersDB(db, appId, groupId);
+    let groupUsersInDB = await getGroupUsersDB(appId, groupId);
     //get online users
-    let groupUsersOnline = [];
+    let groupUsersOnlineTokens = [];
     groupUsersInDB.forEach((value) => {
         let usr = users[value.fk_user_id];
         if (usr) {
-            groupUsersOnline.push(usr);
+            groupUsersOnlineTokens.push(usr.user_token);
         }
     });
-    return groupUsersOnline;
+    return groupUsersOnlineTokens;
 }
 
 //{senderId: socket.user_id, receiverId: null, groupId: groupId, msg};
 class Message {
-    constructor(msg, groupId, senderId, receiverId) {
-        this.msg = msg;
+    constructor(message_content, groupId, senderId, receiverId) {
+        this.message = new MessageContent(message_content, groupId, senderId, receiverId);
+    }
+
+    //save message to db
+    saveMessage() {
+        return saveMessageDB(
+            this.message.senderId, 
+            this.message.receiverId,
+            this.message.groupId, 
+            this.message.message_content, 
+            this.message.type
+        );
+    }
+
+    //send message to users
+    send(io, socket, sendToUsers) {
+        if (!sendToUsers || sendToUsers.length == 0) return;
+        this.saveMessage().then((result) => {
+            sendToUsers.forEach((userToken) => {
+                io.of(socket.nsp.name)
+                  .to(userToken)
+                  .emit('message', this.message);
+            })
+        }).catch((e) => {
+            socket.emit('error', 'something error');
+        })
+    }
+}
+
+class MessageContent {
+    constructor(message_content, groupId, senderId, receiverId) {
+        this.message_type = 'text';
+        this.message_content = '';
         this.groupId = groupId;
         this.senderId = senderId;
         this.receiverId = receiverId;
+        this.read_at = null;
+        this.created_at = null;
+        this.handleMessage(message_content);
+    }
+
+    //handle message
+    handleMessage(msg) {
+        switch(typeof msg) {
+            case 'string': 
+                this.message_type = 'text';
+                this.message_content  = msg;
+                break;
+            case 'file': 
+                let file = this.handleFile(msg);
+                this.message_type = file.type;
+                this.message_content  = file.path;    
+                break;
+        }
+    }
+
+    //handle file
+    handleFile(file) {
+        return null;
     }
 }

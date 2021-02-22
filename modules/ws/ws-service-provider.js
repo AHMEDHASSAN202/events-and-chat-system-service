@@ -3,7 +3,7 @@ import ServiceProvider from "../../core/providers/ServiceProvider";
 import { getApps } from "./db/WsModel";
 import {WsEvents} from './events/index';
 import WsRoutes from "./routes/site";
-import io, { Socket } from 'socket.io';
+import io from 'socket.io';
 
 class WsServiceProviders extends ServiceProvider {
     routes = [
@@ -12,7 +12,7 @@ class WsServiceProviders extends ServiceProvider {
 
     async register() {
         //get my apps
-        const apps = await getApps(this.application.db);
+        const apps = await getApps();
 
         //create io server
         this.application.io = io(this.application.httpServer, {

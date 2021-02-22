@@ -16,6 +16,8 @@ class Application {
     //set router object
     router = router;
 
+    static db = null;
+
     constructor() {
         //prepare my server by express
         this.prepareServer();
@@ -28,9 +30,6 @@ class Application {
     }
 
     init() {
-        //db connect 
-        this.dbConnection();
-
         //load all service providers
         this.loadServiceProviders();
     }
@@ -65,10 +64,13 @@ class Application {
         });
     }
 
-    dbConnection() {
-        //db connection
-        this.db = new DB();
-        this.db.connect();
+    //db connection
+    static dbConnection() {
+        if (Application.db == null) {
+            Application.db = new DB();
+            Application.db.connect();
+        }
+        return Application.db;
     }
 
      /**
