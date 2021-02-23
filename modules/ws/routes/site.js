@@ -1,4 +1,7 @@
+import { UploadChatImages } from "../actions/UploadChatImages";
 
 export default function WsRoutes(app) {
-    // app.router.get('ws', WsAction)
+    app.router.post('chat/files/uploads', (req, res) => {
+        UploadChatImages(app, req, res);
+    });
 }

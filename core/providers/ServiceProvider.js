@@ -6,9 +6,9 @@ class ServiceProvider extends RouteServiceProvider{
     }
     
     boot() {
-        this.mapRoutes();
-
         this.register();
+        
+        this.mapRoutes();
     }
 
     register() {}

@@ -44,11 +44,13 @@ class Application {
         //cors middleware
         this.express.use(cors());
         //bodyParser middleware for body params
+        this.express.use(bodyParser.json())
         this.express.use(bodyParser.urlencoded({extended: true}));
         //fileupload middleware
         this.express.use(fileUpload({ 
             useTempFiles : true,
-            tempFileDir : '/../tmp/'
+            tempFileDir : '/../tmp/',
+            createParentPath: true,
         }));
         //share app
         this.express.use((req, res, next) => {

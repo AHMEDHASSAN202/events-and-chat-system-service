@@ -1,6 +1,5 @@
-import { getGroupUsersDB, getUserByToken, saveMessageDB } from "../db/WsModel";
-
-const users = {};
+import { getUserByToken } from "../db/WsModel";
+import { users } from "./../Constants";
 
 export default async function onConnection(application, socket) {
 
@@ -39,36 +38,6 @@ export default async function onConnection(application, socket) {
         //leave private room for user
         socket.leave(socket.user_token);
     })
-
-    socket.on('message', async function(message_content, receiverId=null, groupId=null) {
-        
-        let sendToUsers = [];
-        let senderToken = socket.user_token;
-
-        //validation
-        if (!((senderToken && receiverId) || (senderToken && groupId))) {
-            socket.emit('error', 'something error');
-            return;
-        }
-
-        if (receiverId != null) {
-            //handle private message
-            sendToUsers = [senderToken];
-            //if receiver user is online
-            let usr = users[receiverId];
-            if (usr) {
-                sendToUsers.push(usr.user_token);
-            }
-            
-        }else if (groupId != null) {
-            //handle message to group
-            sendToUsers = await getGroupUsers(socket.appId, groupId);
-        }
-
-        let message = new Message(message_content, groupId, socket.user_id, receiverId);
-
-        message.send(application.io, socket, sendToUsers);
-    });
 }
 
 
@@ -94,82 +63,3 @@ const emitOnlineUsers = () => {
         users[key].socket.emit('onlineUsers', {onlineUsers});
     });
 } 
-
-const getGroupUsers = async (appId, groupId) => {
-    //group users in db
-    let groupUsersInDB = await getGroupUsersDB(appId, groupId);
-    //get online users
-    let groupUsersOnlineTokens = [];
-    groupUsersInDB.forEach((value) => {
-        let usr = users[value.fk_user_id];
-        if (usr) {
-            groupUsersOnlineTokens.push(usr.user_token);
-        }
-    });
-    return groupUsersOnlineTokens;
-}
-
-//{senderId: socket.user_id, receiverId: null, groupId: groupId, msg};
-class Message {
-    constructor(message_content, groupId, senderId, receiverId) {
-        this.message = new MessageContent(message_content, groupId, senderId, receiverId);
-    }
-
-    //save message to db
-    saveMessage() {
-        return saveMessageDB(
-            this.message.senderId, 
-            this.message.receiverId,
-            this.message.groupId, 
-            this.message.message_content, 
-            this.message.type
-        );
-    }
-
-    //send message to users
-    send(io, socket, sendToUsers) {
-        if (!sendToUsers || sendToUsers.length == 0) return;
-        this.saveMessage().then((result) => {
-            sendToUsers.forEach((userToken) => {
-                io.of(socket.nsp.name)
-                  .to(userToken)
-                  .emit('message', this.message);
-            })
-        }).catch((e) => {
-            socket.emit('error', 'something error');
-        })
-    }
-}
-
-class MessageContent {
-    constructor(message_content, groupId, senderId, receiverId) {
-        this.message_type = 'text';
-        this.message_content = '';
-        this.groupId = groupId;
-        this.senderId = senderId;
-        this.receiverId = receiverId;
-        this.read_at = null;
-        this.created_at = null;
-        this.handleMessage(message_content);
-    }
-
-    //handle message
-    handleMessage(msg) {
-        switch(typeof msg) {
-            case 'string': 
-                this.message_type = 'text';
-                this.message_content  = msg;
-                break;
-            case 'file': 
-                let file = this.handleFile(msg);
-                this.message_type = file.type;
-                this.message_content  = file.path;    
-                break;
-        }
-    }
-
-    //handle file
-    handleFile(file) {
-        return null;
-    }
-}

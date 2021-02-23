@@ -33,6 +33,7 @@ class WsServiceProviders extends ServiceProvider {
             this.application.io.of(app.app_token).on('connection', socket => {
                 socket.appId = app.app_id;
                 Hooks.do_action('io.onConnection', this.application, socket);
+                Hooks.do_action('io.onMessage', this.application, socket);
             });
         });
     }
