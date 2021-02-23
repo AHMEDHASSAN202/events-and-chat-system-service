@@ -14,6 +14,15 @@ export const getAppBySecretKeyAndDomainWithSender = (app_secret_key, app_domain,
     return Application.dbConnection().query(query, [app_secret_key, app_domain, senderToken]);
 } 
 
+export const getAppBySecretKeyAndDomain = (app_secret_key, app_domain) => {
+    let query = `
+        SELECT *
+        FROM apps 
+        WHERE app_secret_key=? AND app_domain=? AND app_status=1
+    `;
+    return Application.dbConnection().query(query, [app_secret_key, app_domain]);
+}
+
 
 export const getUserByToken = (userToken, appId) => {
     return Application.dbConnection().query('SELECT * FROM users WHERE user_token=? AND user_fk_app_id=? LIMIT 1', [userToken, appId]);

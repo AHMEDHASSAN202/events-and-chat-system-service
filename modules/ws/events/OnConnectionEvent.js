@@ -1,5 +1,5 @@
 import { getUserByToken } from "../db/WsModel";
-import { users } from "./../Constants";
+import { APPS } from "./../Constants";
 
 export default async function onConnection(application, socket) {
 
@@ -19,10 +19,10 @@ export default async function onConnection(application, socket) {
         //add socket to current user
         user.socket = socket;
         //set current user to users array
-        users[user.user_id] = user;
+        APPS[socket.appId].users[user.user_id] = user;
         
         //push new array (onlineUsers) to users
-        emitOnlineUsers();
+        emitOnlineUsers(socket.appId);
 
         //create private room
         socket.join(userToken);
@@ -31,34 +31,36 @@ export default async function onConnection(application, socket) {
     //leave chat event
     socket.on('leavejoinedChat', () => {
         //remove current user from users array
-        removeUserFromOnlineUsers(socket.user_token);
+        removeUserFromOnlineUsers(socket.appId, socket.user_token);
         
         //push new array (onlineUsers) to users
-        emitOnlineUsers();
+        emitOnlineUsers(socket.appId);
         //leave private room for user
         socket.leave(socket.user_token);
     })
 }
 
 
-const removeUserFromOnlineUsers = (userToken) => {
+const removeUserFromOnlineUsers = (app_id, userToken) => {
     if (!userToken) return false;
-    Object.keys(users).forEach((key) => {
-        if (users[key].user_token == userToken) {
-            delete users[key];
+    Object.keys(APPS[app_id].users).forEach((key) => {
+        if (APPS[app_id].users[key].user_token == userToken) {
+            delete APPS[app_id].users[key];
             return;
         }
     })
 }
 
-const getOnlineUsers = () => {
+const getOnlineUsers = (app_id) => {
     let onlineUsers = [];
+    let users = APPS[app_id].users;
     Object.keys(users).forEach((key) => onlineUsers.push({userId: users[key].user_id}));
     return onlineUsers;
 }
 
-const emitOnlineUsers = () => {
-    let onlineUsers = getOnlineUsers();
+const emitOnlineUsers = (app_id) => {
+    let onlineUsers = getOnlineUsers(app_id);
+    let users = APPS[app_id].users;
     Object.keys(users).forEach((key) => {
         users[key].socket.emit('onlineUsers', {onlineUsers});
     });

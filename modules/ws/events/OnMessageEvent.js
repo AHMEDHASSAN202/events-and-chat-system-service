@@ -1,6 +1,6 @@
 import { Message } from "../classes/Message";
 import { getGroupUsersDB } from "../db/WsModel";
-import { users } from "./../Constants";
+import { APPS } from "./../Constants";
 
 export default function onMessageEvent(application, socket) {
     socket.on('message', async function(message_content, receiverId=null, groupId=null, message_type='text') {
@@ -17,7 +17,7 @@ export default function onMessageEvent(application, socket) {
             //handle private message
             sendToUsers = [senderToken];
             //if receiver user is online
-            let usr = users[receiverId];
+            let usr = APPS[socket.appId].users[receiverId];
             if (usr) {
                 sendToUsers.push(usr.user_token);
             }
@@ -40,7 +40,7 @@ export const getGroupUsers = async (appId, groupId) => {
     //get online users
     let groupUsersOnlineTokens = [];
     groupUsersInDB.forEach((value) => {
-        let usr = users[value.fk_user_id];
+        let usr = APPS[appId].users[value.fk_user_id];
         if (usr) {
             groupUsersOnlineTokens.push(usr.user_token);
         }
